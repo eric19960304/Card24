@@ -3,7 +3,6 @@ package hkucs.card24;
 import android.content.Context;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -19,6 +18,7 @@ import com.singularsys.jep.ParseException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Random;
 
 public class MainActivity extends AppCompatActivity {
@@ -43,8 +43,9 @@ public class MainActivity extends AppCompatActivity {
     int[] data = new int[4];
     int[] card = new int[4];
     int[] imageCount = new int[4];
-    int target;
+    int targetX;
     Random random = new Random();
+    ArrayList<Integer> allowedNumbers = new ArrayList<>(Arrays.asList(1,2,3,4,5,6,7,8,9,10,11,12,13));
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,7 +56,6 @@ public class MainActivity extends AppCompatActivity {
         setListeners(); // add event listeners to components
         pickCard(); // randomly generate cards, which replaces the original initCardImage() function
 
-        Log.d("test", "app started");
     }
 
     private void findViews(){
@@ -88,7 +88,8 @@ public class MainActivity extends AppCompatActivity {
 
         startGame.setOnClickListener(new Button.OnClickListener(){
             public void onClick(View view){
-                target = Integer.parseInt(targetNumber.getText().toString());
+                targetX = Integer.parseInt(targetNumber.getText().toString());
+                expression.setHint(String.format("Please form an expression such that the result is %d", targetX));
 
                 // close the keyboard
                 InputMethodManager inputManager = (InputMethodManager)
@@ -101,68 +102,19 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // cards
-        for(int i=0; i<4; i++) {
-            final int cardId = i;
-            cards[i].setOnClickListener(new ImageButton.OnClickListener() {
-                public void onClick(View view) {
-                    clickCard(cardId);
-                }
-            });
-        }
-
-        // clear
-        clear.setOnClickListener(new Button.OnClickListener(){
-            public void onClick(View view){
-                setClear();
-            }
-        });
-
-        // (
-        left.setOnClickListener(new Button.OnClickListener(){
-            public void onClick(View view) {
-                expression.append("(");
-            }
-        });
-
-        // )
-        right.setOnClickListener(new Button.OnClickListener(){
-            public void onClick(View view) {
-                expression.append(")");
-            }
-        });
-
-        // +
-        plus.setOnClickListener(new Button.OnClickListener(){
-            public void onClick(View view) {
-                expression.append("+");
-            }
-        });
-
-        // -
-        minus.setOnClickListener(new Button.OnClickListener(){
-            public void onClick(View view) {
-                expression.append("-");
-            }
-        });
-
-        // *
-        multiply.setOnClickListener(new Button.OnClickListener(){
-            public void onClick(View view) {
-                expression.append("*");
-            }
-        });
-
-        // /
-        divide.setOnClickListener(new Button.OnClickListener(){
-            public void onClick(View view) {
-                expression.append("/");
-            }
-        });
-
         // =
         checkInput.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View view) {
+                if(!isAllCardsPicked()){
+                    // some cards are not yet picked
+                    Toast.makeText(
+                            MainActivity.this,
+                            "Please pick all 4 cards",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                    return;
+                }
+
                 String inputStr = expression.getText().toString();
                 if (checkInput(inputStr)) {
                     Toast.makeText(MainActivity.this, "Correct Answer",
@@ -182,6 +134,147 @@ public class MainActivity extends AppCompatActivity {
                 pickCard();
             }
         });
+
+        // clear
+        clear.setOnClickListener(new Button.OnClickListener(){
+            public void onClick(View view){
+                setClear();
+            }
+        });
+
+        // cards
+        for(int i=0; i<4; i++) {
+            final int cardId = i;
+            cards[i].setOnClickListener(new ImageButton.OnClickListener() {
+                public void onClick(View view) {
+                    if(isOperatorValid("card"))
+                        clickCard(cardId);
+                }
+            });
+        }
+
+        // (
+        left.setOnClickListener(new Button.OnClickListener(){
+            public void onClick(View view) {
+                if(isOperatorValid("("))
+                    expression.append("(");
+            }
+        });
+
+        // )
+        right.setOnClickListener(new Button.OnClickListener(){
+            public void onClick(View view) {
+                if(isOperatorValid(")"))
+                    expression.append(")");
+            }
+        });
+
+        // +
+        plus.setOnClickListener(new Button.OnClickListener(){
+            public void onClick(View view) {
+                if(isOperatorValid("+"))
+                    expression.append("+");
+            }
+        });
+
+        // -
+        minus.setOnClickListener(new Button.OnClickListener(){
+            public void onClick(View view) {
+                if(isOperatorValid("-"))
+                    expression.append("-");
+            }
+        });
+
+        // *
+        multiply.setOnClickListener(new Button.OnClickListener(){
+            public void onClick(View view) {
+                if(isOperatorValid("*"))
+                    expression.append("*");
+            }
+        });
+
+        // /
+        divide.setOnClickListener(new Button.OnClickListener(){
+            public void onClick(View view) {
+                if(isOperatorValid("/"))
+                    expression.append("/");
+            }
+        });
+    }
+
+    private boolean isAllCardsPicked(){
+        for(int i=0; i<4; i++){
+            if(imageCount[i]==0){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isOperatorValid(String op){
+
+        String exp = expression.getText().toString();
+        String last = "";
+        if(exp.length()>0){
+            last = exp.substring(exp.length()-1);
+        }
+
+        if(op.equals("card") || op.equals("(")){
+            // op: card, (
+            if( exp.length() == 0 || isArithmeticOP(last) || last.equals("(") ){
+                return true;
+            }else{
+                Toast.makeText(MainActivity.this, "Invalid operation",
+                        Toast.LENGTH_SHORT).show();
+                return false;
+            }
+
+        }else if(isArithmeticOP(op) || op.equals(")")){
+            // op: +, -, *, /, )
+            if( isDigit(last) || last.equals(")") ){
+
+                // check bracket count, e.g. (1+2)) is invalid, but ((1+2) is on going so valid
+                if(op.equals(")")){
+                    if(!isBracketCountValid(exp+op)){
+                        Toast.makeText(MainActivity.this, "Invalid operation",
+                                Toast.LENGTH_SHORT).show();
+                        return false;
+                    }
+                }
+
+                return true;
+            }else{
+                Toast.makeText(MainActivity.this, "Invalid operation",
+                        Toast.LENGTH_SHORT).show();
+                return false;
+            }
+
+        }else{
+            // this case should never happen
+            Toast.makeText(MainActivity.this, "Invalid operator",
+                    Toast.LENGTH_SHORT).show();
+            return false;
+        }
+    }
+
+    private boolean isArithmeticOP(String op){
+        return op.equals("+") || op.equals("-") || op.equals("*") || op.equals("/");
+    }
+
+    private boolean isDigit(String op){
+        if(op.length()==0) return false;
+
+        return op.compareTo("0") >= 0 && op.compareTo("9") <= 0;
+    }
+
+    private boolean isBracketCountValid(String exp){
+        int openCount = 0;
+        int closeCount = 0;
+        for(int i=0; i<exp.length(); i++){
+            if(exp.charAt(i) == '(') openCount++;
+            if(exp.charAt(i) == ')') closeCount++;
+        }
+        return openCount >= closeCount;
     }
 
     private void clickCard(int i) {
@@ -202,32 +295,18 @@ public class MainActivity extends AppCompatActivity {
     private void pickCard(){
 
         // generate 4 non-repeated int [1, 13]
-        boolean isRepeated;
-        do{
-            for(int i=0; i<4; i++){
-                data[i] = random_in_range(1,13);
-            }
 
-            // check if repeated
-            isRepeated = false;
-            for(int i=0; i<3; i++){
-                for(int j=i+1; j<4; j++){
-                    if(data[i]==data[j]){
-                        isRepeated = true;
-                        break;
-                    }
-                }
-
-                if(isRepeated) break;
-            }
-        }while(isRepeated);
+        Collections.shuffle(allowedNumbers, random);
+        for(int i=0; i<4; i++){
+            data[i] = allowedNumbers.get(i*2);
+        }
 
         // select random suit for the card
         for(int i=0; i<4; i++){
-            int suit = random_in_range(0, 3);
+            int suit = random_in_range(0, 3);  // [0, 3]
             card[i] = data[i] + suit*13;
 
-            Log.d("test", String.format("data[%d]=%d, card[%d]=%d", i, data[i], i, card[i]));
+            // Log.d("myTest", String.format("data[%d]=%d, card[%d]=%d", i, data[i], i, card[i]));
         }
 
         setClear();
@@ -242,7 +321,7 @@ public class MainActivity extends AppCompatActivity {
         expression.setText("");
         for (int i = 0; i < 4; i++) {
             imageCount[i] = 0;
-            resID = getResources().getIdentifier("card"+data[i],
+            resID = getResources().getIdentifier("card"+card[i],
                     "drawable", "hkucs.card24");
             cards[i].setImageResource(resID);
             cards[i].setClickable(true);
@@ -267,7 +346,7 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
         Double ca = (Double)res;
-        if (Math.abs(ca - target) < 1e-6){
+        if (Math.abs(ca - targetX) < 1e-6){
             return true;
         }
         return false;
